@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>엘레오노라 E. 루벤슈타인</title>
+<title>nora</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -31,7 +31,6 @@
   #doc th, #doc td { border-bottom: 1px solid; padding: 8px 10px; text-align: left; vertical-align: top; }
   #doc td:first-child { white-space: nowrap; }
 
-  /* 화면 위아래 가장자리에 닿은 낱말만 그쪽으로 납작하게 눌린다 */
   #doc .w { display: inline-block; }
   @media (prefers-reduced-motion: reduce) { #doc .w { transform: none !important; } }
 </style>
@@ -51,7 +50,6 @@
         const w = document.createElement('div'); w.className = 'table-wrap';
         t.parentNode.insertBefore(w, t); w.appendChild(t);
       });
-      // 문서 안의 .md 링크는 이 페이지 안에서 열기
       docEl.querySelectorAll('a[href$=".md"]').forEach(a => {
         const target = a.getAttribute('href').replace(/^\.\//, '');
         a.addEventListener('click', e => { e.preventDefault(); load(target); });
