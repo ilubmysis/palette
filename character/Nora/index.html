@@ -57,6 +57,14 @@
     overflow-wrap: anywhere;
   }
   #doc .footnote-preview.is-visible { display: block; }
+  @media (hover: none) {
+    #doc .footnote-preview {
+      max-width: calc(100vw - 24px);
+      padding: 0.8rem 1rem;
+      font-size: 15px;
+      box-shadow: 0 6px 24px rgb(0 0 0 / 20%);
+    }
+  }
   html { scroll-behavior: smooth; }
 
   #doc .w { display: inline-block; }
@@ -147,6 +155,16 @@
   }
 
   // translation-work/assets/js/footnotes.js 와 같은 동작
+  const isTouch = window.matchMedia('(hover: none)').matches;
+  function closeAllPreviews() {
+    docEl.querySelectorAll('.footnote-preview.is-visible').forEach(p => p.classList.remove('is-visible'));
+  }
+  if (isTouch) {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.footnote-preview, a.footnote')) closeAllPreviews();
+    });
+  }
+
   function buildFootnotePreviews() {
     docEl.querySelectorAll("sup[id^='fnref'] a.footnote").forEach((link) => {
       const targetId = decodeURIComponent(link.getAttribute("href").slice(1));
@@ -190,10 +208,20 @@
       const show = () => { preview.classList.add("is-visible"); place(); };
       const hide = () => preview.classList.remove("is-visible");
       window.addEventListener('scroll', () => { if (preview.classList.contains('is-visible')) place(); }, { passive: true });
-      link.parentElement.addEventListener("mouseenter", show);
-      link.parentElement.addEventListener("mouseleave", hide);
-      link.addEventListener("focus", show);
-      link.addEventListener("blur", hide);
+      if (isTouch) {
+        // 모바일: 나무위키처럼 각주를 누르면 팝업으로 띄우고, 바깥을 누르면 닫는다
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          const open = preview.classList.contains("is-visible");
+          closeAllPreviews();
+          if (!open) show();
+        });
+      } else {
+        link.parentElement.addEventListener("mouseenter", show);
+        link.parentElement.addEventListener("mouseleave", hide);
+        link.addEventListener("focus", show);
+        link.addEventListener("blur", hide);
+      }
     });
   }
 
