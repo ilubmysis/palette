@@ -41,10 +41,8 @@
   #doc .has-footnote-preview { position: relative; }
   #doc .footnote-preview {
     display: none;
-    position: absolute;
+    position: fixed;
     z-index: 10;
-    left: 0;
-    top: 1.25em;
     width: max-content;
     max-width: min(520px, 80vw);
     padding: 0.65rem 0.8rem;
@@ -178,8 +176,20 @@
       link.parentElement.appendChild(preview);
       link.parentElement.classList.add("has-footnote-preview");
 
-      const show = () => preview.classList.add("is-visible");
+      // 표 안처럼 잘리는 상자 안에서도 보이도록 화면 기준으로 띄운다
+      const place = () => {
+        const r = link.getBoundingClientRect();
+        const pw = preview.offsetWidth, ph = preview.offsetHeight;
+        const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+        let left = Math.min(r.left, vw - pw - 12);
+        let top = r.bottom + 4;
+        if (top + ph > vh - 8 && r.top - ph - 4 > 8) top = r.top - ph - 4;
+        preview.style.left = Math.max(12, left) + 'px';
+        preview.style.top = top + 'px';
+      };
+      const show = () => { preview.classList.add("is-visible"); place(); };
       const hide = () => preview.classList.remove("is-visible");
+      window.addEventListener('scroll', () => { if (preview.classList.contains('is-visible')) place(); }, { passive: true });
       link.parentElement.addEventListener("mouseenter", show);
       link.parentElement.addEventListener("mouseleave", hide);
       link.addEventListener("focus", show);
