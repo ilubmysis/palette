@@ -213,10 +213,9 @@
   function measure() {
     resetAll();
     const y = window.scrollY;
-    const dr = docEl.getBoundingClientRect(), mid = dr.left + dr.width / 2;
     words = [...docEl.querySelectorAll('.w')].filter(el => !el.closest('.footnote-preview')).map(el => {
       const r = el.getBoundingClientRect();
-      return { el, top: r.top + y, h: r.height, cx: r.left + r.width / 2 - mid };
+      return { el, top: r.top + y, h: r.height };
     }).sort((a, b) => a.top - b.top);
     bend();
   }
@@ -227,18 +226,14 @@
     return lo;
   }
 
-  // 유리병: 위아래 가장자리에서만 원통 표면을 따라 넘어가듯, 줄이 납작해지고 가운데로 살짝 모인다
   function squash(w, edge, zone, side, next) {
     const y = w.top - window.scrollY + w.h / 2;
     let t = side === 'top' ? (y - edge) / zone : (edge - y) / zone;
     t = Math.max(0, Math.min(1, t));
     if (t >= 1) return;
-    const a = (1 - t) * 1.32;                  // 가장자리에서 약 76도까지 기운다
-    const sy = Math.max(0.08, Math.cos(a));    // 세로로 눌림
-    const sx = 1 - (1 - Math.cos(a)) * 0.28;   // 가로로 살짝 좁아짐
-    const dx = -(1 - sx) * w.cx;               // 줄 전체가 가운데로 모이도록
+    const s = 0.08 + 0.92 * (1 - (1 - t) * (1 - t));
     w.el.style.transformOrigin = side === 'top' ? '50% 0%' : '50% 100%';
-    w.el.style.transform = `translateX(${dx.toFixed(1)}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`;
+    w.el.style.transform = `scaleY(${s.toFixed(3)})`;
     next.add(w.el);
   }
 
@@ -247,7 +242,7 @@
     ticking = false;
     if (!words.length) return;
     const y = window.scrollY, vh = window.innerHeight;
-    const zone = Math.max(60, Math.min(150, vh * 0.16));
+    const zone = Math.max(36, Math.min(72, vh * 0.08));
     const next = new Set();
     for (let i = firstAt(y - 40); i < words.length && words[i].top < y + zone; i++)
       squash(words[i], 0, zone, 'top', next);
