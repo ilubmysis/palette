@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>엘레오노라 E. 루벤슈타인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --paper: #f3eee4;
+    --paper-2: #e9e2d4;
+    --ink: #2a2622;
+    --ink-soft: #6b6359;
+    --red: #a3271f;
+    --line: #d6ccba;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1c1a17;
+      --paper-2: #26231f;
+      --ink: #e7e0d3;
+      --ink-soft: #a29a8c;
+      --red: #d9574c;
+      --line: #3a352e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font-family: "Noto Serif KR", serif;
+    line-height: 1.85;
+    font-size: 16px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    max-width: 760px; margin: 0 auto; padding: 12px 16px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .bar .name { font-weight: 700; margin-right: auto; letter-spacing: .02em; }
+  .bar .name small { color: var(--red); font-weight: 400; margin-left: 6px; }
+  nav button, .toggle {
+    font: inherit; font-size: 14px; color: var(--ink-soft);
+    background: none; border: 0; padding: 4px 8px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button[aria-current="page"] { color: var(--ink); border-bottom-color: var(--red); }
+  .toggle { border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; }
+  .toggle[aria-pressed="true"] { color: var(--red); border-color: var(--red); }
+
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 160px; }
+  #doc h1 { font-size: 30px; line-height: 1.3; margin: 0 0 16px; }
+  #doc h2 {
+    font-size: 21px; margin: 48px 0 12px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  #doc h3 { font-size: 17px; margin: 32px 0 8px; }
+  #doc p { margin: 0 0 14px; }
+  #doc a { color: var(--red); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  #doc blockquote {
+    margin: 16px 0; padding: 4px 0 4px 16px;
+    border-left: 2px solid var(--red); color: var(--ink-soft);
+  }
+  #doc hr { border: 0; border-top: 1px dashed var(--line); margin: 40px 0; }
+  #doc code {
+    font-family: inherit; font-size: 13px; color: var(--red);
+    border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-right: 4px;
+  }
+  #doc ul, #doc ol { padding-left: 22px; margin: 0 0 14px; }
+  #doc li { margin: 4px 0; }
+  .table-wrap { overflow-x: auto; margin: 16px 0; }
+  #doc table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  #doc th, #doc td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  #doc th { background: var(--paper-2); font-weight: 600; }
+  #doc td:first-child { white-space: nowrap; }
+
+  /* 유리병 효과: 화면 가운데에서 멀어질수록 휘고 흐려진다 */
+  .bottle #doc > * {
+    transform-origin: center;
+    will-change: transform, filter, opacity;
+  }
+  .bottle-edge {
+    pointer-events: none; position: fixed; left: 0; right: 0; height: 22vh; z-index: 5;
+    opacity: 0; transition: opacity .3s;
+  }
+  .bottle .bottle-edge { opacity: 1; }
+  .bottle-edge.top { top: 0; background: linear-gradient(var(--paper), transparent); }
+  .bottle-edge.bottom { bottom: 0; background: linear-gradient(transparent, var(--paper)); }
+  @media (prefers-reduced-motion: reduce) {
+    .bottle #doc > * { transform: none !important; filter: none !important; }
+  }
+  .loading { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="name">노라 E. 루벤슈타인<small>에라타</small></div>
+    <nav>
+      <button data-doc="main.md">개요</button>
+      <button data-doc="life.md">생애</button>
+      <button data-doc="works.md">저작</button>
+    </nav>
+    <button class="toggle" id="bottle" aria-pressed="false">유리병</button>
+  </div>
+</header>
+<div class="bottle-edge top"></div>
+<div class="bottle-edge bottom"></div>
+<main><article id="doc"><p class="loading">문서를 펼치는 중…</p></article></main>
+
+<script>
+  const docEl = document.getElementById('doc');
+  const navBtns = [...document.querySelectorAll('nav button')];
+  const docs = navBtns.map(b => b.dataset.doc);
+
+  async function load(name, push = true) {
+    if (!docs.includes(name)) name = 'main.md';
+    docEl.innerHTML = '<p class="loading">문서를 펼치는 중…</p>';
+    try {
+      const res = await fetch(name);
+      if (!res.ok) throw new Error(res.status);
+      const md = await res.text();
+      docEl.innerHTML = marked.parse(md);
+      docEl.querySelectorAll('table').forEach(t => {
+        const w = document.createElement('div'); w.className = 'table-wrap';
+        t.parentNode.insertBefore(w, t); w.appendChild(t);
+      });
+      // 문서 안의 ./life.md 같은 링크는 이 페이지 안에서 열기
+      docEl.querySelectorAll('a[href$=".md"]').forEach(a => {
+        const target = a.getAttribute('href').replace('./', '');
+        a.addEventListener('click', e => { e.preventDefault(); load(target); });
+      });
+    } catch (e) {
+      docEl.innerHTML = '<p>문서를 불러오지 못했어요. 같은 폴더에 ' + name + ' 파일이 있는지 확인해 주세요.</p>';
+    }
+    navBtns.forEach(b => b.setAttribute('aria-current', b.dataset.doc === name ? 'page' : 'false'));
+    if (push) history.pushState({ name }, '', '#' + name.replace('.md', ''));
+    window.scrollTo(0, 0);
+    requestAnimationFrame(bend);
+  }
+
+  navBtns.forEach(b => b.addEventListener('click', () => load(b.dataset.doc)));
+  window.addEventListener('popstate', e => load((e.state && e.state.name) || 'main.md', false));
+
+  // 유리병: 각 블록의 화면 중심으로부터의 거리에 따라 세로로 눌리고 흐려진다
+  const toggle = document.getElementById('bottle');
+  let bottleOn = false;
+  try { bottleOn = localStorage.getItem('nora-bottle') === '1'; } catch (e) {}
+  function setBottle(on) {
+    bottleOn = on;
+    document.body.classList.toggle('bottle', on);
+    toggle.setAttribute('aria-pressed', on);
+    try { localStorage.setItem('nora-bottle', on ? '1' : '0'); } catch (e) {}
+    if (!on) docEl.querySelectorAll(':scope > *').forEach(el => { el.style.transform = ''; el.style.filter = ''; el.style.opacity = ''; });
+    else bend();
+  }
+  toggle.addEventListener('click', () => setBottle(!bottleOn));
+
+  let ticking = false;
+  function bend() {
+    ticking = false;
+    if (!bottleOn) return;
+    const vh = window.innerHeight, center = vh / 2;
+    docEl.querySelectorAll(':scope > *').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.bottom < -200 || r.top > vh + 200) return;
+      const mid = r.top + r.height / 2;
+      const d = Math.max(-1, Math.min(1, (mid - center) / center)); // -1 위, 0 가운데, 1 아래
+      const a = Math.abs(d);
+      const ease = a * a;
+      el.style.transform = `perspective(700px) rotateX(${(-d * 38).toFixed(2)}deg) scaleY(${(1 - ease * 0.35).toFixed(3)})`;
+      el.style.filter = `blur(${(ease * 2.2).toFixed(2)}px)`;
+      el.style.opacity = (1 - ease * 0.55).toFixed(3);
+    });
+  }
+  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(bend); } }, { passive: true });
+  window.addEventListener('resize', bend);
+
+  setBottle(bottleOn);
+  const start = (location.hash.slice(1) || 'main') + '.md';
+  load(start, false);
+</script>
+</body>
+</html>
