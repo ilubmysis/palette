@@ -79,20 +79,10 @@
   #doc th { background: var(--paper-2); font-weight: 600; }
   #doc td:first-child { white-space: nowrap; }
 
-  /* 유리병 효과: 화면 가운데에서 멀어질수록 휘고 흐려진다 */
-  .bottle #doc > * {
-    transform-origin: center;
-    will-change: transform, filter, opacity;
-  }
-  .bottle-edge {
-    pointer-events: none; position: fixed; left: 0; right: 0; height: 22vh; z-index: 5;
-    opacity: 0; transition: opacity .3s;
-  }
-  .bottle .bottle-edge { opacity: 1; }
-  .bottle-edge.top { top: 0; background: linear-gradient(var(--paper), transparent); }
-  .bottle-edge.bottom { bottom: 0; background: linear-gradient(transparent, var(--paper)); }
+  /* 유리병 효과: 화면 위아래 가장자리에 닿은 글자만 그쪽으로 납작하게 눌린다 */
+  #doc .w { display: inline-block; }
   @media (prefers-reduced-motion: reduce) {
-    .bottle #doc > * { transform: none !important; filter: none !important; }
+    #doc .w { transform: none !important; }
   }
   .loading { color: var(--ink-soft); }
 </style>
@@ -109,8 +99,6 @@
     <button class="toggle" id="bottle" aria-pressed="false">유리병</button>
   </div>
 </header>
-<div class="bottle-edge top"></div>
-<div class="bottle-edge bottom"></div>
 <main><article id="doc"><p class="loading">문서를 펼치는 중…</p></article></main>
 
 <script>
@@ -141,45 +129,96 @@
     navBtns.forEach(b => b.setAttribute('aria-current', b.dataset.doc === name ? 'page' : 'false'));
     if (push) history.pushState({ name }, '', '#' + name.replace('.md', ''));
     window.scrollTo(0, 0);
-    requestAnimationFrame(bend);
+    wrapWords();
+    requestAnimationFrame(measure);
   }
 
   navBtns.forEach(b => b.addEventListener('click', () => load(b.dataset.doc)));
   window.addEventListener('popstate', e => load((e.state && e.state.name) || 'main.md', false));
 
-  // 유리병: 각 블록의 화면 중심으로부터의 거리에 따라 세로로 눌리고 흐려진다
+  // 유리병: 화면 위아래 가장자리에 닿은 낱말만, 그 가장자리 쪽으로 납작하게 눌린다
   const toggle = document.getElementById('bottle');
-  let bottleOn = false;
-  try { bottleOn = localStorage.getItem('nora-bottle') === '1'; } catch (e) {}
-  function setBottle(on) {
-    bottleOn = on;
-    document.body.classList.toggle('bottle', on);
-    toggle.setAttribute('aria-pressed', on);
-    try { localStorage.setItem('nora-bottle', on ? '1' : '0'); } catch (e) {}
-    if (!on) docEl.querySelectorAll(':scope > *').forEach(el => { el.style.transform = ''; el.style.filter = ''; el.style.opacity = ''; });
-    else bend();
+  const header = document.querySelector('header');
+  let bottleOn = true;
+  try { const v = localStorage.getItem('nora-bottle'); if (v !== null) bottleOn = v === '1'; } catch (e) {}
+
+  let words = [];      // { el, top, h } 문서 기준 위치, top 오름차순
+  let active = new Set();
+
+  function wrapWords() {
+    const walker = document.createTreeWalker(docEl, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) if (walker.currentNode.nodeValue.trim()) nodes.push(walker.currentNode);
+    nodes.forEach(n => {
+      const frag = document.createDocumentFragment();
+      n.nodeValue.split(/(\s+)/).forEach(part => {
+        if (!part) return;
+        if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+        const sp = document.createElement('span'); sp.className = 'w'; sp.textContent = part;
+        frag.appendChild(sp);
+      });
+      n.parentNode.replaceChild(frag, n);
+    });
   }
-  toggle.addEventListener('click', () => setBottle(!bottleOn));
+
+  function measure() {
+    resetAll();
+    const y = window.scrollY;
+    words = [...docEl.querySelectorAll('.w')].map(el => {
+      const r = el.getBoundingClientRect();
+      return { el, top: r.top + y, h: r.height };
+    }).sort((a, b) => a.top - b.top);
+    bend();
+  }
+
+  function resetAll() {
+    active.forEach(el => { el.style.transform = ''; el.style.transformOrigin = ''; });
+    active.clear();
+  }
+
+  // top 기준으로 from 이상인 첫 낱말 위치
+  function firstAt(from) {
+    let lo = 0, hi = words.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (words[m].top < from) lo = m + 1; else hi = m; }
+    return lo;
+  }
+
+  function squash(w, edge, zone, side, next) {
+    const y = w.top - window.scrollY + w.h / 2;
+    let t = side === 'top' ? (y - edge) / zone : (edge - y) / zone;
+    t = Math.max(0, Math.min(1, t));
+    if (t >= 1) return;
+    const s = 0.08 + 0.92 * (1 - (1 - t) * (1 - t)); // 가장자리에 가까울수록 급하게 납작해진다
+    w.el.style.transformOrigin = side === 'top' ? '50% 0%' : '50% 100%';
+    w.el.style.transform = `scaleY(${s.toFixed(3)})`;
+    next.add(w.el);
+  }
 
   let ticking = false;
   function bend() {
     ticking = false;
-    if (!bottleOn) return;
-    const vh = window.innerHeight, center = vh / 2;
-    docEl.querySelectorAll(':scope > *').forEach(el => {
-      const r = el.getBoundingClientRect();
-      if (r.bottom < -200 || r.top > vh + 200) return;
-      const mid = r.top + r.height / 2;
-      const d = Math.max(-1, Math.min(1, (mid - center) / center)); // -1 위, 0 가운데, 1 아래
-      const a = Math.abs(d);
-      const ease = a * a;
-      el.style.transform = `perspective(700px) rotateX(${(-d * 38).toFixed(2)}deg) scaleY(${(1 - ease * 0.35).toFixed(3)})`;
-      el.style.filter = `blur(${(ease * 2.2).toFixed(2)}px)`;
-      el.style.opacity = (1 - ease * 0.55).toFixed(3);
-    });
+    if (!bottleOn || !words.length) return;
+    const y = window.scrollY, vh = window.innerHeight;
+    const topEdge = header.offsetHeight, zone = Math.max(36, Math.min(72, vh * 0.08));
+    const next = new Set();
+    for (let i = firstAt(y + topEdge - 40); i < words.length && words[i].top < y + topEdge + zone; i++)
+      squash(words[i], topEdge, zone, 'top', next);
+    for (let i = firstAt(y + vh - zone - 40); i < words.length && words[i].top < y + vh; i++)
+      squash(words[i], vh, zone, 'bottom', next);
+    active.forEach(el => { if (!next.has(el)) { el.style.transform = ''; el.style.transformOrigin = ''; } });
+    active = next;
   }
+
+  function setBottle(on) {
+    bottleOn = on;
+    toggle.setAttribute('aria-pressed', on);
+    try { localStorage.setItem('nora-bottle', on ? '1' : '0'); } catch (e) {}
+    if (on) bend(); else resetAll();
+  }
+  toggle.addEventListener('click', () => setBottle(!bottleOn));
   window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(bend); } }, { passive: true });
-  window.addEventListener('resize', bend);
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(measure, 150); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
 
   setBottle(bottleOn);
   const start = (location.hash.slice(1) || 'main') + '.md';
