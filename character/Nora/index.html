@@ -192,8 +192,10 @@
         preview.style.left = Math.max(12, left) + 'px';
         preview.style.top = top + 'px';
       };
-      const show = () => { preview.classList.add("is-visible"); place(); };
-      const hide = () => preview.classList.remove("is-visible");
+      // 각주에서 미리보기로 커서를 옮기는 동안 꺼지지 않도록 잠깐 기다렸다가 닫는다
+      let hideTimer;
+      const show = () => { clearTimeout(hideTimer); if (!preview.classList.contains("is-visible")) { preview.classList.add("is-visible"); place(); } };
+      const hide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(() => preview.classList.remove("is-visible"), 250); };
       window.addEventListener('scroll', () => { if (preview.classList.contains('is-visible')) place(); }, { passive: true });
       if (isTouch) {
         // 모바일: 나무위키처럼 각주를 누르면 팝업으로 띄우고, 바깥을 누르면 닫는다
@@ -206,6 +208,8 @@
       } else {
         link.parentElement.addEventListener("mouseenter", show);
         link.parentElement.addEventListener("mouseleave", hide);
+        preview.addEventListener("mouseenter", show);
+        preview.addEventListener("mouseleave", hide);
         link.addEventListener("focus", show);
         link.addEventListener("blur", hide);
       }
