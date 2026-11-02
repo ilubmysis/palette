@@ -71,27 +71,13 @@
   #doc a .w { text-decoration: underline; text-decoration-thickness: inherit; text-underline-offset: inherit; }
   @media (prefers-reduced-motion: reduce) { #doc .w { transform: none !important; } }
 
-  /* 스크롤 바: 기본 스크롤 바를 숨기고 점선 트랙과 눈금으로 대신한다 */
+  /* 스크롤 바 숨김 */
   html { scrollbar-width: none; }
   html::-webkit-scrollbar { display: none; }
-  #sb-canvas { position: fixed; top: 0; right: 0; width: 96px; height: 100vh; pointer-events: none; z-index: 20; }
-  #sb-hit { position: fixed; right: 0; width: 44px; z-index: 21; cursor: pointer; touch-action: none; }
-  #sb-arrow {
-    position: fixed; right: 18px; bottom: 18px; z-index: 21;
-    background: none; border: 0; padding: 6px; color: inherit; cursor: pointer;
-    opacity: .55; transition: opacity .25s, transform .25s;
-  }
-  #sb-arrow:hover { opacity: 1; }
-  #sb-arrow.hidden { opacity: 0; transform: translateY(6px); pointer-events: none; }
 </style>
 </head>
 <body>
 <main><article id="doc"></article></main>
-<canvas id="sb-canvas" aria-hidden="true"></canvas>
-<div id="sb-hit" aria-hidden="true"></div>
-<button id="sb-arrow" aria-label="아래로">
-  <svg width="16" height="22" viewBox="0 0 16 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v17M2 13l6 6 6-6"/></svg>
-</button>
 
 <script>
   const docEl = document.getElementById('doc');
@@ -298,145 +284,6 @@
   const start = (location.hash.slice(1) || 'main') + '.md';
   load(start, false);
 
-  // ── 스크롤 바 ─────────────────────────────────────────────
-  // 쉴 때는 아래 화살표만, 움직이면 점선 트랙과 현재 위치를 중심으로 퍼지는 눈금이 나타난다.
-  (() => {
-    const cv = document.getElementById('sb-canvas');
-    const hit = document.getElementById('sb-hit');
-    const arrow = document.getElementById('sb-arrow');
-    const ctx = cv.getContext('2d');
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    const GAP = 7;          // 점 간격
-    const DOT = 2;          // 점 길이
-    const RIGHT = 22;       // 오른쪽 여백
-    let W = 0, H = 0, dpr = 1, trackTop = 0, trackH = 0, maxExt = 46, spread = 30;
-
-    let pos = 0;            // 화면에 그려지는 위치 (0~1)
-    let target = 0;         // 목표 위치
-    let hoverY = null;      // 마우스가 트랙 위에 있을 때 y
-    let reveal = 0;         // 0 화살표 상태, 1 트랙 상태
-    let wantOpen = false, idleTimer = 0, dragging = false, last = 0;
-
-    function size() {
-      dpr = window.devicePixelRatio || 1;
-      W = 96; H = window.innerHeight;
-      cv.width = W * dpr; cv.height = H * dpr;
-      cv.style.height = H + 'px';
-      trackH = Math.round(Math.min(360, H * 0.46));
-      trackTop = Math.round((H - trackH) / 2);
-      maxExt = innerWidth < 820 ? 26 : 46;
-      spread = Math.max(18, trackH * 0.09);
-      hit.style.top = trackTop - 10 + 'px';
-      hit.style.height = trackH + 20 + 'px';
-    }
-
-    function scrollMax() { return Math.max(1, document.documentElement.scrollHeight - innerHeight); }
-    function progress() { return Math.min(1, Math.max(0, scrollY / scrollMax())); }
-
-    function open() {
-      wantOpen = true;
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { if (hoverY === null && !dragging) wantOpen = false; }, 1200);
-      kick();
-    }
-
-    let running = false;
-    function kick() { if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); } }
-
-    function frame(now) {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      target = progress();
-      const k = reduce ? 1 : 1 - Math.exp(-dt / 0.06);
-      pos += (target - pos) * k;
-      const r = reduce ? 1 : 1 - Math.exp(-dt / 0.09);
-      reveal += ((wantOpen ? 1 : 0) - reveal) * r;
-      if (Math.abs(reveal - (wantOpen ? 1 : 0)) < 0.002) reveal = wantOpen ? 1 : 0;
-
-      draw();
-      const scrollable = document.documentElement.scrollHeight > innerHeight + 4;
-      const atBottom = !scrollable || scrollY >= scrollMax() - 2;
-      arrow.classList.toggle('hidden', reveal > 0.05 || atBottom);
-
-      const settled = Math.abs(target - pos) < 0.0005 && (reveal === 0 || reveal === 1);
-      if (settled && !wantOpen && reveal === 0) { running = false; return; }
-      if (settled && hoverY === null && !dragging && reveal === 1 && !wantOpen) { running = false; return; }
-      requestAnimationFrame(frame);
-    }
-
-    function draw() {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      if (reveal <= 0) return;
-      const color = getComputedStyle(document.body).color;
-      ctx.strokeStyle = color;
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 1.6;
-      const x = W - RIGHT;
-
-      // 처음 열릴 때: 아래에서 위로 실선이 자라고, 이어서 점선으로 풀린다
-      const grow = Math.min(1, reveal / 0.45);
-      const dots = Math.max(0, (reveal - 0.35) / 0.65);
-      if (dots < 1) {
-        ctx.globalAlpha = 0.5 * (1 - dots);
-        ctx.beginPath();
-        ctx.moveTo(x, trackTop + trackH);
-        ctx.lineTo(x, trackTop + trackH - trackH * grow);
-        ctx.stroke();
-      }
-      if (dots <= 0) { ctx.globalAlpha = 1; return; }
-
-      const center = hoverY !== null && !dragging
-        ? Math.min(trackTop + trackH, Math.max(trackTop, hoverY))
-        : trackTop + pos * trackH;
-      const n = Math.floor(trackH / GAP);
-      for (let i = 0; i <= n; i++) {
-        const y = trackTop + i * GAP;
-        const d = (y - center) / spread;
-        const f = Math.exp(-d * d);                 // 가운데에서 가장 길다
-        const len = DOT + (maxExt - DOT) * f * dots;
-        ctx.globalAlpha = (0.35 + 0.55 * f) * dots;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - len, y);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    function yToScroll(y) {
-      const t = Math.min(1, Math.max(0, (y - trackTop) / trackH));
-      return t * scrollMax();
-    }
-
-    hit.addEventListener('pointerenter', e => { hoverY = e.clientY; open(); });
-    hit.addEventListener('pointermove', e => {
-      hoverY = e.clientY;
-      if (dragging) window.scrollTo({ top: yToScroll(e.clientY), behavior: 'instant' });
-      open();
-    });
-    hit.addEventListener('pointerleave', () => { if (!dragging) { hoverY = null; open(); } });
-    hit.addEventListener('pointerdown', e => {
-      dragging = true; hit.setPointerCapture(e.pointerId);
-      window.scrollTo({ top: yToScroll(e.clientY), behavior: 'instant' });
-      open();
-    });
-    hit.addEventListener('pointerup', e => {
-      dragging = false; hit.releasePointerCapture(e.pointerId);
-      if (!hit.matches(':hover')) hoverY = null;
-      open();
-    });
-
-    arrow.addEventListener('click', () => window.scrollBy({ top: innerHeight * 0.8, behavior: 'smooth' }));
-    window.addEventListener('scroll', open, { passive: true });
-    window.addEventListener('resize', () => { size(); kick(); });
-
-    size();
-    pos = target = progress();
-    kick();
-    // 문서가 바뀌어 길이가 달라지면 화살표 상태를 다시 계산
-    new ResizeObserver(() => kick()).observe(document.body);
-  })();
 </script>
 </body>
 </html>
