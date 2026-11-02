@@ -152,6 +152,20 @@
     });
   }
 
+  // 본문 각주 번호를 누르면 아래 각주로, 각주의 ↩를 누르면 다시 본문 그 자리로 이동한다
+  // (주소의 #은 문서 이름에 쓰이므로 바꾸지 않고 스크롤만 한다)
+  docEl.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#fn"]');
+    if (!a) return;
+    if (isTouch && a.classList.contains('footnote') && !a.closest('.footnote-preview')) return;
+    const t = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)));
+    if (!t) return;
+    e.preventDefault();
+    closeAllPreviews();
+    const y = t.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.3;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  });
+
   function buildFootnotePreviews() {
     docEl.querySelectorAll("sup[id^='fnref'] a.footnote").forEach((link) => {
       const targetId = decodeURIComponent(link.getAttribute("href").slice(1));
